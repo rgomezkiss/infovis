@@ -29,6 +29,12 @@ def main():
     resumen_categoria = {'Recibido': {'Meme': 0, 'Reel': 0, 'Tweet': 0, 'Tiktok': 0}, 
                          'Enviado': {'Meme': 0, 'Reel': 0, 'Tweet': 0, 'Tiktok': 0}}
     resumen_persona = {}
+    
+    # Nuevo diccionario para el conteo de personas por día
+    resumen_conteo_dia = {}
+    
+    # Nuevo diccionario para el conteo de personas por día de la semana
+    resumen_conteo_semana = {dia: {'Recibido': set(), 'Enviado': set()} for dia in dias_semana_nombre}
 
     # Recorrer las subcarpetas de días de la semana
     for dia_semana in os.listdir(dataset_dir):
@@ -46,6 +52,7 @@ def main():
                 fecha = archivo_csv.split('.')[0]
                 if fecha not in resumen_dia:
                     resumen_dia[fecha] = {'Recibido': 0, 'Enviado': 0}
+                    resumen_conteo_dia[fecha] = {'Recibido': set(), 'Enviado': set()}
 
                 # Sumar totales por día
                 resumen_dia[fecha]['Recibido'] += df['Total Recibido'].sum()
@@ -65,13 +72,21 @@ def main():
                 resumen_categoria['Enviado']['Tweet'] += df['Tweet Enviado'].sum()
                 resumen_categoria['Enviado']['Tiktok'] += df['Tiktok Enviado'].sum()
 
-                # Sumar totales por persona
+                # Sumar totales por persona y agregar al conteo de personas únicas
                 for index, row in df.iterrows():
                     nombre = row['Nombre']
                     if nombre not in resumen_persona:
                         resumen_persona[nombre] = {'Recibido': 0, 'Enviado': 0}
                     resumen_persona[nombre]['Recibido'] += row['Total Recibido']
                     resumen_persona[nombre]['Enviado'] += row['Total Enviado']
+
+                    # Agregar al set de personas únicas
+                    if row['Total Recibido'] > 0:
+                        resumen_conteo_dia[fecha]['Recibido'].add(nombre)
+                        resumen_conteo_semana[dia_semana]['Recibido'].add(nombre)
+                    if row['Total Enviado'] > 0:
+                        resumen_conteo_dia[fecha]['Enviado'].add(nombre)
+                        resumen_conteo_semana[dia_semana]['Enviado'].add(nombre)
 
     # Guardar los resultados en nuevos archivos CSV
     # Total por día, ordenado por fecha
@@ -95,6 +110,24 @@ def main():
     df_resumen_persona = pd.DataFrame.from_dict(resumen_persona, orient='index').reset_index()
     df_resumen_persona.columns = ['Nombre', 'Recibido', 'Enviado']
     df_resumen_persona.to_csv('total_por_persona.csv', index=False)
+
+    # Guardar el conteo de personas por día
+    df_conteo_dia = pd.DataFrame({
+        'Fecha': resumen_conteo_dia.keys(),
+        'Recibido': [len(resumen_conteo_dia[fecha]['Recibido']) for fecha in resumen_conteo_dia],
+        'Enviado': [len(resumen_conteo_dia[fecha]['Enviado']) for fecha in resumen_conteo_dia]
+    })
+    df_conteo_dia = df_conteo_dia.sort_values(by='Fecha')  # Ordenar por fecha
+    df_conteo_dia.to_csv('total_personas_por_dia.csv', index=False)
+
+    # Guardar el conteo de personas por día de la semana
+    df_conteo_semana = pd.DataFrame({
+        'Día Semana': resumen_conteo_semana.keys(),
+        'Recibido': [len(resumen_conteo_semana[dia]['Recibido']) for dia in resumen_conteo_semana],
+        'Enviado': [len(resumen_conteo_semana[dia]['Enviado']) for dia in resumen_conteo_semana]
+    })
+    df_conteo_semana['Día Semana'] = df_conteo_semana['Día Semana'].map(dias_semana_nombre)  # Mapear nombres completos
+    df_conteo_semana.to_csv('total_personas_por_dia_semana.csv', index=False)
 
     print("¡Archivos generados con éxito!")
 
